@@ -473,7 +473,7 @@ class _LocationIndexerBase(object):
         Unpack the user input for getitem and setitem and compute ndim.
 
         loc[a] -> ([a], :), 1D
-        loc[[a,b],] -> ([a,b], :),
+        loc[[a,b]] -> ([a,b], :),
         loc[a,b] -> ([a], [b]), 0D
 
         Parameters
@@ -534,6 +534,8 @@ class _LocIndexer(_LocationIndexerBase):
         --------
         pandas.DataFrame.loc
         """
+        if self.df.empty:
+            return self.df._default_to_pandas(lambda df: df.loc[key])
         row_loc, col_loc, ndim = self._parse_row_and_column_locators(key)
         self.row_scalar = is_scalar(row_loc)
         self.col_scalar = is_scalar(col_loc)
@@ -760,6 +762,8 @@ class _iLocIndexer(_LocationIndexerBase):
         --------
         pandas.DataFrame.iloc
         """
+        if self.df.empty:
+            return self.df._default_to_pandas(lambda df: df.iloc[key])
         row_loc, col_loc, ndim = self._parse_row_and_column_locators(key)
         self.row_scalar = is_scalar(row_loc)
         self.col_scalar = is_scalar(col_loc)

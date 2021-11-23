@@ -13,10 +13,9 @@
 
 """Module houses `FeatherDispatcher` class, that is used for reading `.feather` files."""
 
-from modin.core.io.column_stores.column_store_dispatcher import (
-    ColumnStoreDispatcher,
-)
+from modin.core.io.column_stores.column_store_dispatcher import ColumnStoreDispatcher
 from modin.utils import import_optional_dependency
+from modin.core.io.file_dispatcher import OpenFile
 
 
 class FeatherDispatcher(ColumnStoreDispatcher):
@@ -60,7 +59,11 @@ class FeatherDispatcher(ColumnStoreDispatcher):
             )
             from pyarrow.feather import read_feather
 
-            df = read_feather(path)
+            with OpenFile(
+                path,
+                **(kwargs.get("storage_options", None) or {}),
+            ) as file:
+                df = read_feather(file)
             # pyarrow.feather.read_feather doesn't support columns as pandas.Index
             columns = list(df.columns)
         return cls.build_query_compiler(path, columns, use_threads=False)
