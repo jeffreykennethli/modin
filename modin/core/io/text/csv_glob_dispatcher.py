@@ -32,11 +32,7 @@ from modin.utils import import_optional_dependency
 
 
 class CSVGlobDispatcher(CSVDispatcher):
-    """
-    Class contains utils for reading multiple `.csv` files simultaneously.
-
-    Inherits some common for `.csv` files util functions from `CSVDispatcher` class.
-    """
+    """Class contains utils for reading multiple `.csv` files simultaneously."""
 
     @classmethod
     def _read(cls, filepath_or_buffer, **kwargs):
@@ -58,6 +54,15 @@ class CSVGlobDispatcher(CSVDispatcher):
         # Ensures that the file is a string file path. Otherwise, default to pandas.
         filepath_or_buffer = cls.get_path_or_buffer(filepath_or_buffer)
         if isinstance(filepath_or_buffer, str):
+            # os.altsep == None on Linux
+            is_folder = any(
+                filepath_or_buffer.endswith(sep) for sep in (os.sep, os.altsep) if sep
+            )
+            if "*" not in filepath_or_buffer and not is_folder:
+                warnings.warn(
+                    "Shell-style wildcard '*' must be in the filename pattern in order to read multiple "
+                    f"files at once. Did you forget it? Passed filename: '{filepath_or_buffer}'"
+                )
             if not cls.file_exists(filepath_or_buffer):
                 return cls.single_worker_read(filepath_or_buffer, **kwargs)
             filepath_or_buffer = cls.get_path(filepath_or_buffer)

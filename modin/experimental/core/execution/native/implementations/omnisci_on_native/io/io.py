@@ -37,7 +37,6 @@ import pyarrow as pa
 
 import pandas
 import pandas._libs.lib as lib
-from pandas._typing import FilePathOrBuffer
 from pandas.io.common import is_url
 
 ReadCsvKwargsType = Dict[
@@ -51,7 +50,6 @@ ReadCsvKwargsType = Dict[
         Sequence,
         Callable,
         Dialect,
-        FilePathOrBuffer,
         None,
     ],
 ]
@@ -62,11 +60,7 @@ class ArrowEngineException(Exception):
 
 
 class OmnisciOnNativeIO(BaseIO, TextFileDispatcher):
-    """
-    Class contains IO functions implementations with OmniSci storage format and Native engine.
-
-    Inherits some common for OmniSci engine util functions from ``BaseIO`` class.
-    """
+    """Class contains IO functions implementations with OmniSci storage format and Native engine."""
 
     frame_cls = OmnisciOnNativeDataframe
     query_compiler_cls = DFAlgQueryCompiler
