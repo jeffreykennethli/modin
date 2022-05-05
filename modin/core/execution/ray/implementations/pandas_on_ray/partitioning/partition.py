@@ -366,8 +366,15 @@ def _apply_func(partition, func, *args, **kwargs):  # pragma: no cover
     )
 
 
+from ray.actor import ActorHandle
+
+from .partition_actor import global_pba
+
+
 @ray.remote(num_returns=4)
-def _apply_list_of_funcs(funcs, partition):  # pragma: no cover
+def _apply_list_of_funcs(
+    funcs, partition, pba: ActorHandle = global_pba
+):  # pragma: no cover
     """
     Execute all operations stored in the call queue on the partition in a worker process.
 
@@ -404,6 +411,8 @@ def _apply_list_of_funcs(funcs, partition):  # pragma: no cover
         else:
             return obj
 
+    print(f"number of funcs: {len(funcs)=}")
+    # print(f"applying funcs {funcs=}")
     for func, args, kwargs in funcs:
         func = deserialize(func)
         args = deserialize(args)
@@ -415,6 +424,9 @@ def _apply_list_of_funcs(funcs, partition):  # pragma: no cover
         # we absolutely have to.
         except ValueError:
             partition = func(partition.copy(), *args, **kwargs)
+        finally:
+            if pba:
+                pba.update.remote(1)
 
     return (
         partition,
