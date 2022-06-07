@@ -174,4 +174,3 @@ below:
   4 - "partitioning" skiprows (skip during partitioning)
   5 - "partitioning" skiprows (skip during partitioning)
   6 - data to partition (divide between the rest of partitions)
-  7 - data to partition (divide between the rest of partitions)
