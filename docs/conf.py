@@ -161,7 +161,11 @@ html_theme_options = {
             "icon": "fas fa-envelope-square",
         },
     ],
+    "navbar_end": ["navbar-icon-links"],
 }
+
+# Values to pass into the template's engine context.
+html_context = {"default_mode": "dark"}  # default light/dark mode toggle.
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
