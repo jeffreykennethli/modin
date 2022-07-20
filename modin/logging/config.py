@@ -18,6 +18,7 @@ Module contains ``ModinFormatter`` class.
 """
 
 import logging
+import logging_loki
 from logging.handlers import RotatingFileHandler
 import datetime as dt
 import os
@@ -28,11 +29,19 @@ import pandas
 import threading
 import time
 from typing import Optional
+import requests
+from datetime import datetime, timedelta
 
 import modin
 from modin.config import LogMemoryInterval, LogFileSize, LogMode
 
+logging_loki.emitter.LokiEmitter.level_tag = "level"
+
 __LOGGER_CONFIGURED__: bool = False
+
+GRAFANA_URL = "https://graphite-prod-10-prod-us-central-0.grafana.net/graphite/metrics"  # "https://<your-subdomain>.hosted-metrics.grafana.net/metrics"
+GRAFANA_APIKEY = "eyJrIjoiMjQ2YzJjODk1ZTcwNDBkNDNmN2Y2YzdiYTRkOTUxMGI0MzYzZWViOSIsIm4iOiJ0ZXN0X21vZGluX21ldHJpY3NfMiIsImlkIjo2MTY1MTR9"  # "<your user from grafana.net>:<your api key from grafana.net -- should be editor (or MetricsPublisher) role>"
+instance_id = "362941"
 
 
 class ModinFormatter(logging.Formatter):  # noqa: PR01
@@ -121,6 +130,11 @@ def _create_logger(
     os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 
     logger = logging.getLogger(namespace)
+    handler = logging_loki.LokiHandler(
+        url="https://180440:eyJrIjoiZGQ3ZTJmZDFjMWY0NjY4NzkzMGE0ZmQ4YmJjMzY3ODZlZmM1MGFlOSIsIm4iOiJ0ZXN0X21vZGluX2xvZ3MiLCJpZCI6NjE2NTE0fQ==@logs-prod3.grafana.net/loki/api/v1/push",
+        version="1",
+        tags={"application": "modin", "label": "test_5"},
+    )
     logfile = RotatingFileHandler(
         filename=log_filename,
         mode="a",
@@ -131,7 +145,9 @@ def _create_logger(
         fmt="%(process)d, %(thread)d, %(asctime)s, %(message)s",
         datefmt="%Y-%m-%d,%H:%M:%S.%f",
     )
+    handler.setFormatter(formatter)
     logfile.setFormatter(formatter)
+    logger.addHandler(handler)
     logger.addHandler(logfile)
     logger.setLevel(log_level)
 
@@ -191,11 +207,47 @@ def memory_thread(logger: logging.Logger, sleep_time: int) -> None:
         The interval at which to profile system memory.
     """
     while True:
-        rss_mem = bytes_int_to_str(psutil.Process().memory_info().rss)
+        rss_raw = psutil.Process().memory_info().rss
+        rss_mem = bytes_int_to_str(rss_raw)
         svmem = psutil.virtual_memory()
         logger.info(f"Memory Percentage: {svmem.percent}%")
         logger.info(f"RSS Memory: {rss_mem}")
+        mem_perc_name = f"modin.test.5.mem_perc"
+        mem_rss_name = f"modin.test.5.mem_rss"
+        curr_time = int(datetime.now().timestamp())
+        metrics = [
+            {
+                "name": mem_perc_name,
+                "metric": mem_perc_name,
+                "value": float(svmem.percent),
+                "interval": 1,
+                "unit": "",
+                "time": curr_time,
+                "mtype": "count",
+                "tags": [],
+            },
+            {
+                "name": mem_rss_name,
+                "metric": mem_rss_name,
+                "value": float(rss_raw),
+                "interval": 1,
+                "unit": "",
+                "time": curr_time,
+                "mtype": "count",
+                "tags": [],
+            },
+        ]
+        # print(curr_time)
+        write_metrics(metrics, GRAFANA_URL, GRAFANA_APIKEY)
         time.sleep(sleep_time)
+
+
+def write_metrics(metrics, url, apikey):
+    headers = {"Authorization": "Bearer %s" % instance_id + ":" + apikey}
+    result = requests.post(url, json=metrics, headers=headers)
+    if result.status_code != 200:
+        raise Exception(result.text)
+    # print("%s: %s" % (result.status_code, result.text))
 
 
 def get_logger(namespace: str = "modin.logger.default") -> logging.Logger:
