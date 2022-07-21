@@ -147,8 +147,8 @@ def enable_logging(
 
 
 def enable_remote_logging(
-    func: Callable,
-    modin_layer: str = "RAY-REMOTE",
+    modin_layer: Union[str, Callable, Type] = "PANDAS-API",
+    name: Optional[str] = None,
     log_level: str = "info",
 ) -> Callable:
     """
@@ -171,38 +171,45 @@ def enable_remote_logging(
     log_level = log_level.lower()
     assert hasattr(Logger, log_level.lower()), f"Invalid log level: {log_level}"
 
-    @wraps(func)
-    def run_and_log(*args: tuple, **kwargs: Dict[Any, Any]) -> Any:
-        """
-        Compute function with logging if Modin logging is enabled.
+    def decorator(func: Any) -> Any:
+        """Decorate function or class to add logs to Modin API function(s)."""
 
-        Parameters
-        ----------
-        *args : tuple
-            The function arguments.
-        **kwargs : dict
-            The function keyword arguments.
+        start_line = f"START::{modin_layer.upper()}::{name or func.__name__}"
+        stop_line = f"STOP::{modin_layer.upper()}::{name or func.__name__}"
 
-        Returns
-        -------
-        Any
-        """
-        # Don't log remote calls if LogMode is disable or api_only.
-        if LogMode.get() != "enable":
-            return func(*args, **kwargs)
+        @wraps(func)
+        def run_and_log(*args: tuple, **kwargs: Dict[Any, Any]) -> Any:
+            """
+            Compute function with logging if Modin logging is enabled.
 
-        logger = get_worker_logger(JOB_ID)
-        start_line = f"START::{modin_layer.upper()}::{func.__name__}"
-        stop_line = f"STOP::{modin_layer.upper()}::{func.__name__}"
-        funcs: List[Callable] = [arg for arg in args if callable(arg)]
-        if funcs:
-            start_line += f":{':'.join(f.__name__ for f in funcs)}"
-            stop_line += f":{':'.join(f.__name__ for f in funcs)}"
+            Parameters
+            ----------
+            *args : tuple
+                The function arguments.
+            **kwargs : dict
+                The function keyword arguments.
 
-        logger.info(start_line)
-        try:
-            return func(*args, **kwargs)
-        finally:
-            logger.info(stop_line)
+            Returns
+            -------
+            Any
+            """
+            # Don't log remote calls if LogMode is disable or api_only.
+            if LogMode.get() != "enable":
+                return func(*args, **kwargs)
+            logger = get_worker_logger(JOB_ID)
 
-    return run_and_log
+            # If the func is called on callables, also log those callables.
+            callable_args_suffix = ""
+            callable_args: List[Callable] = [arg for arg in args if callable(arg)]
+            if callable_args:
+                callable_args_suffix = f":{':'.join(f.__name__ for f in callable_args)}"
+
+            logger.info(start_line + callable_args_suffix)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                logger.info(stop_line + callable_args_suffix)
+
+        return run_and_log
+
+    return decorator
