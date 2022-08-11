@@ -31,8 +31,7 @@ import threading
 import time
 from typing import Optional
 import requests
-from datetime import datetime, timedelta
-
+from datetime import datetime
 import modin
 from modin.config import LogMemoryInterval, LogFileSize, LogMode, LogPath
 
@@ -197,6 +196,12 @@ def configure_logging() -> None:
         mem.start()
 
     _create_logger("modin.logger.errors", JOB_ID, "error", logging.INFO)
+    metadata_logger = _create_logger(
+        "modin.logger.metadata", JOB_ID, "metadata", logging.INFO
+    )
+    metadata_logger.info(f"trace_id: {JOB_ID}")
+    metadata_logger.info(f"metrics_target: modin.test.{JOB_ID}")
+    metadata_logger.info(f"logs_label: {JOB_ID}")
 
     __LOGGER_CONFIGURED__ = True
 
