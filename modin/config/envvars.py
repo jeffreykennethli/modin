@@ -391,6 +391,42 @@ class LogMode(EnvironmentVariable, type=ExactStr):
         cls.put("enable_api_only")
 
 
+class LogPath(EnvironmentVariable, type=ExactStr):
+    """Set ``LogPath`` value for where logs should be written out."""
+
+    varname = "MODIN_LOG_PATH"
+    default = ""
+
+    @classmethod
+    def put(cls, value: str) -> None:
+        """
+        Set ``LogPath`` with extra checks
+
+        Parameters
+        ----------
+        value : str
+            Config value to set.
+        """
+        # Might need to check for object store paths later
+        if not os.path.exists(value):
+            # TODO(vkarthik): this prob shouldn't be ValueError
+            raise ValueError("Invalid path string for LogPath")
+        super().put(value)
+
+    @classmethod
+    def get(cls) -> str:
+        """
+        Get ``LogPath`` with extra checks.
+
+        Returns
+        -------
+        str
+        """
+        log_path = super().get()
+        # TODO(vkarthik): add extra checks here?
+        return log_path
+
+
 class LogMemoryInterval(EnvironmentVariable, type=int):
     """Interval (in seconds) to profile memory utilization for logging."""
 
