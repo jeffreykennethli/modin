@@ -242,7 +242,7 @@ def memory_thread(logger: logging.Logger, sleep_time: int) -> None:
                 "mtype": "count",
                 "tags": [],
             },
-        ]p
+        ]
         write_metrics(metrics, GRAFANA_URL, GRAFANA_APIKEY)
         time.sleep(sleep_time)
 
