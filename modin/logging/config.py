@@ -26,6 +26,7 @@ import uuid
 import platform
 import psutil
 import pandas
+import pathlib
 import threading
 import time
 from typing import Optional
@@ -33,11 +34,12 @@ import requests
 from datetime import datetime, timedelta
 
 import modin
-from modin.config import LogMemoryInterval, LogFileSize, LogMode
+from modin.config import LogMemoryInterval, LogFileSize, LogMode, LogPath
 
 logging_loki.emitter.LokiEmitter.level_tag = "level"
 
 __LOGGER_CONFIGURED__: bool = False
+JOB_ID = uuid.uuid4().hex
 
 GRAFANA_URL = "https://graphite-prod-10-prod-us-central-0.grafana.net/graphite/metrics"  # "https://<your-subdomain>.hosted-metrics.grafana.net/metrics"
 GRAFANA_APIKEY = "eyJrIjoiMjQ2YzJjODk1ZTcwNDBkNDNmN2Y2YzdiYTRkOTUxMGI0MzYzZWViOSIsIm4iOiJ0ZXN0X21vZGluX21ldHJpY3NfMiIsImlkIjo2MTY1MTR9"  # "<your user from grafana.net>:<your api key from grafana.net -- should be editor (or MetricsPublisher) role>"
@@ -126,14 +128,19 @@ def _create_logger(
     Logger
         Logger object configured per Modin settings.
     """
-    log_filename = f".modin/logs/job_{job_id}/{log_name}.log"
+    log_path = LogPath.get()
+    if log_path == "":
+        log_filename = f".modin/logs/job_{job_id}/{log_name}.log"
+    else:
+        log_filename = str(pathlib.Path(log_path) / f"{log_name}.log")
+
     os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 
     logger = logging.getLogger(namespace)
     handler = logging_loki.LokiHandler(
         url="https://180440:eyJrIjoiZGQ3ZTJmZDFjMWY0NjY4NzkzMGE0ZmQ4YmJjMzY3ODZlZmM1MGFlOSIsIm4iOiJ0ZXN0X21vZGluX2xvZ3MiLCJpZCI6NjE2NTE0fQ==@logs-prod3.grafana.net/loki/api/v1/push",
         version="1",
-        tags={"application": "modin", "label": "test_5"},
+        tags={"application": "modin", "label": JOB_ID},
     )
     logfile = RotatingFileHandler(
         filename=log_filename,
@@ -157,11 +164,10 @@ def _create_logger(
 def configure_logging() -> None:
     """Configure Modin logging by setting up directory structure and formatting."""
     global __LOGGER_CONFIGURED__
-    job_id = uuid.uuid4().hex
 
     logger = _create_logger(
         "modin.logger.default",
-        job_id,
+        JOB_ID,
         "trace",
         logging.INFO if LogMode.get() == "enable_api_only" else logging.DEBUG,
     )
@@ -178,7 +184,7 @@ def configure_logging() -> None:
     if LogMode.get() != "enable_api_only":
         mem_sleep = LogMemoryInterval.get()
         mem_logger = _create_logger(
-            "modin_memory.logger", job_id, "memory", logging.DEBUG
+            "modin_memory.logger", JOB_ID, "memory", logging.DEBUG
         )
 
         svmem = psutil.virtual_memory()
@@ -190,7 +196,7 @@ def configure_logging() -> None:
         )
         mem.start()
 
-    _create_logger("modin.logger.errors", job_id, "error", logging.INFO)
+    _create_logger("modin.logger.errors", JOB_ID, "error", logging.INFO)
 
     __LOGGER_CONFIGURED__ = True
 
@@ -212,8 +218,8 @@ def memory_thread(logger: logging.Logger, sleep_time: int) -> None:
         svmem = psutil.virtual_memory()
         logger.info(f"Memory Percentage: {svmem.percent}%")
         logger.info(f"RSS Memory: {rss_mem}")
-        mem_perc_name = f"modin.test.5.mem_perc"
-        mem_rss_name = f"modin.test.5.mem_rss"
+        mem_perc_name = f"modin.test.{JOB_ID}.mem_perc"
+        mem_rss_name = f"modin.test.{JOB_ID}.mem_rss"
         curr_time = int(datetime.now().timestamp())
         metrics = [
             {
@@ -236,8 +242,7 @@ def memory_thread(logger: logging.Logger, sleep_time: int) -> None:
                 "mtype": "count",
                 "tags": [],
             },
-        ]
-        # print(curr_time)
+        ]p
         write_metrics(metrics, GRAFANA_URL, GRAFANA_APIKEY)
         time.sleep(sleep_time)
 
@@ -247,7 +252,6 @@ def write_metrics(metrics, url, apikey):
     result = requests.post(url, json=metrics, headers=headers)
     if result.status_code != 200:
         raise Exception(result.text)
-    # print("%s: %s" % (result.status_code, result.text))
 
 
 def get_logger(namespace: str = "modin.logger.default") -> logging.Logger:
