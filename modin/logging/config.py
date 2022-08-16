@@ -136,24 +136,27 @@ def _create_logger(
     os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 
     logger = logging.getLogger(namespace)
-    handler = logging_loki.LokiHandler(
-        url="https://180440:eyJrIjoiZGQ3ZTJmZDFjMWY0NjY4NzkzMGE0ZmQ4YmJjMzY3ODZlZmM1MGFlOSIsIm4iOiJ0ZXN0X21vZGluX2xvZ3MiLCJpZCI6NjE2NTE0fQ==@logs-prod3.grafana.net/loki/api/v1/push",
-        version="1",
-        tags={"application": "modin", "label": JOB_ID},
+
+    formatter = ModinFormatter(
+        fmt="%(process)d, %(thread)d, %(asctime)s, %(message)s",
+        datefmt="%Y-%m-%d,%H:%M:%S.%f",
     )
+    if namespace == "modin.logger.default":
+        handler = logging_loki.LokiHandler(
+            url="https://180440:eyJrIjoiZGQ3ZTJmZDFjMWY0NjY4NzkzMGE0ZmQ4YmJjMzY3ODZlZmM1MGFlOSIsIm4iOiJ0ZXN0X21vZGluX2xvZ3MiLCJpZCI6NjE2NTE0fQ==@logs-prod3.grafana.net/loki/api/v1/push",
+            version="1",
+            tags={"application": "modin", "label": JOB_ID},
+        )
+
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
     logfile = RotatingFileHandler(
         filename=log_filename,
         mode="a",
         maxBytes=LogFileSize.get() * int(1e6),
         backupCount=10,
     )
-    formatter = ModinFormatter(
-        fmt="%(process)d, %(thread)d, %(asctime)s, %(message)s",
-        datefmt="%Y-%m-%d,%H:%M:%S.%f",
-    )
-    handler.setFormatter(formatter)
     logfile.setFormatter(formatter)
-    logger.addHandler(handler)
     logger.addHandler(logfile)
     logger.setLevel(log_level)
 
